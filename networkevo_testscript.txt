@@ -1,0 +1,561 @@
+echo "Starting Tests, please wait ...."
+
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+WHITE='\033[1;37m'
+SERVER1='10.10.137.21'
+SERVER2='10.10.137.22'
+SERVER3='10.10.148.21'
+SERVER4='10.10.148.22'
+PORT='8080'
+VIP1="10.103.129.34"
+VIP2="10.103.1.34"
+DNS1="10.10.10.43"
+DNS2="10.10.10.45"
+USERNAME="testserver"
+PASWORD="Password3192!"
+HOST1="10.101.1.247"
+HOST3="10.101.1.221"
+HOST4="10.101.1.222"
+HOSTS="HOST1 HOST3 HOST4"
+MONITORTIME="30"
+DNSFAILOVERTIME="60"
+#WEB1="/v1.41/containers/web1"
+ping 10.10.10.43 -w5 > dns1ready.txt
+ping 10.10.10.45 -w5 > dns2ready.txt
+nslookup www.cisco.com > lookuptest.txt
+
+echo "Preparing Environment for testing, this will take a minute."
+echo "Testing Monitors are "$MONITORTIME
+echo "Testing failover monitor is "$DNSFAILOVERTIME
+echo "STOPPING ALL CONTAINERS"
+sudo curl -X POST http://$SERVER1:5555/v1.41/containers/web1/stop
+sudo curl -X POST http://$SERVER2:5555/v1.41/containers/web2/stop
+sudo curl -X POST http://$SERVER3:5555/v1.41/containers/web3/stop
+sudo curl -X POST http://$SERVER4:5555/v1.41/containers/web4/stop
+sleep 1
+
+echo "STARTING ALL CONTAINERS"
+sudo curl -X POST http://$SERVER1:5555/v1.41/containers/web1/start
+sudo curl -X POST http://$SERVER2:5555/v1.41/containers/web2/start
+sudo curl -X POST http://$SERVER3:5555/v1.41/containers/web3/start
+sudo curl -X POST http://$SERVER4:5555/v1.41/containers/web4/start
+sleep $MONITORTIME
+
+sudo curl -s $SERVER1:$PORT --max-time 5 > testresult1.txt
+sudo curl -s $SERVER2:$PORT --max-time 5 > testresult2.txt
+sudo curl -s $SERVER3:$PORT --max-time 5 > testresult3.txt
+sudo curl -s $SERVER4:$PORT --max-time 5 > testresult4.txt
+
+sleep $DNSFAILOVERTIME
+sudo curl -s $VIP1 --max-time 5 > testresult5.txt
+sudo curl -s $VIP2 --max-time 5 > testresult6.txt
+
+sleep 1
+echo "Testing DNS"
+if grep -Rq "$icmp_seq" dns1ready.txt
+then
+    printf "${GREEN}DNS1 $DNS1 is working\n"
+else
+    printf "${RED}DNS1 $DNS1 is not working\n"
+fi
+
+sleep 1
+if grep -Rq "icmp_seq" dns2ready.txt
+then
+    printf "${GREEN}DNS2 $DNS2 is working\n"
+else
+    printf "${RED}DNS2 $DNS2 is not working\n"
+fi
+
+sleep 1
+if grep -Rq "can't" lookuptest.txt 
+then
+    printf "${RED}Name Queries aren't working\n"
+else
+    printf "${GREEN}Name Queries are working\n"
+fi
+
+sleep 1
+printf "${WHITE}Testing Web Servers\n"
+if grep -Rq "$Working" testresult1.txt
+then
+    printf "${GREEN}server1 $SERVER1 is working\n"
+else
+    printf "${RED}server1 $SERVER1 is not working\n"
+fi
+
+sleep 1
+if grep -Rq "$Working" testresult2.txt
+then
+    printf "${GREEN}server2 $SERVER2 is working\n"
+else
+    printf "${RED}server2 $SERVER2 is not working\n"
+fi
+
+sleep 1
+if grep -Rq "$Working" testresult3.txt
+then
+    printf "${GREEN}server3 $SERVER3 is working\n"
+else
+    printf "${RED}server3 $SERVER3 is not working\n"
+fi
+
+sleep 1
+if grep -Rq "$Working" testresult4.txt
+then
+    printf "${GREEN}server4 $SERVER4 is working\n"
+else
+    printf "${RED}server4 $SERVER4 is not working\n"
+fi
+printf "${WHITE}Finished direct server tests\n"
+
+echo "Starting Loadbalancer tests"
+sleep 1
+if grep -Rq "$Working" testresult5.txt
+then
+    printf "${GREEN}vip1 $VIP1 at 2 Treasury DC is working\n"
+else
+    printf "${RED}vip1 $VIP1 at 2 Treasury DC is not working\n"
+fi
+
+sleep 1
+if grep -Rq "$Working" testresult6.txt
+then
+    printf "${GREEN}vip2 $VIP2 at East Burwood DC is working\n"
+else
+    printf "${RED}vip2 $VIP2 at East Burwood DC is not working\n"
+fi
+printf "${WHITE}Finished Loadbalancer tests\n"
+
+sleep 1
+
+sleep 1
+
+read -p "Hit Enter to start 1st test"
+echo "STOPPING web1"
+echo "Please wait ......"
+sudo curl -X POST http://$SERVER1:5555/v1.41/containers/web1/stop
+
+sleep $MONITORTIME
+sudo curl -s $SERVER1:$PORT --max-time 5 > testresult1.txt
+sudo curl -s $SERVER2:$PORT --max-time 5 > testresult2.txt
+sudo curl -s $SERVER3:$PORT --max-time 5 > testresult3.txt
+sudo curl -s $SERVER4:$PORT --max-time 5 > testresult4.txt
+
+sleep $DNSFAILOVERTIME
+sudo curl -s $VIP1 --max-time 5 > testresult5.txt
+sudo curl -s $VIP2 --max-time 5 > testresult6.txt
+
+sleep 1
+printf "${WHITE}Testing Web Servers with Web1 stopped\n"
+if grep -Rq "$Working" testresult1.txt
+then
+    printf "${GREEN}server1 $SERVER1 is working\n"
+else
+    printf "${RED}server1 $SERVER1 is not working\n"
+fi
+
+sleep 1
+if grep -Rq "$Working" testresult2.txt
+then
+    printf "${GREEN}server2 $SERVER2 is working\n"
+else
+    printf "${RED}server2 $SERVER2 is not working\n"
+fi
+
+sleep 1
+if grep -Rq "$Working" testresult3.txt
+then
+    printf "${GREEN}server3 $SERVER3 is working\n"
+else
+    printf "${RED}server3 $SERVER3 is not working\n"
+fi
+
+sleep 1
+if grep -Rq "$Working" testresult4.txt
+then
+    printf "${GREEN}server4 $SERVER4 is working\n"
+else
+    printf "${RED}server4 $SERVER4 is not working\n"
+fi
+printf "${WHITE}Finished direct server tests\n"
+
+echo "Starting Loadbalancer tests"
+sleep 1
+if grep -Rq "$Working" testresult5.txt
+then
+    printf "${GREEN}vip1 $VIP1 at 2 Treasury DC is working\n"
+else
+    printf "${RED}vip1 $VIP1 at 2 Treasury DC is not working\n"
+fi
+
+sleep 1
+if grep -Rq "$Working" testresult6.txt
+then
+    printf "${GREEN}vip2 $VIP2 at East Burwood DC is working\n"
+else
+    printf "${RED}vip2 $VIP2 at East Burwood DC is not working\n"
+fi
+printf "${WHITE}Finished Loadbalancer tests\n"
+
+sleep 1
+
+read -p "Hit Enter to run next test"
+echo "STARTING web1"
+sudo curl -X POST http://$SERVER1:5555/v1.41/containers/web1/start
+echo "STOPPING web2"
+echo "Please wait ......"
+sudo curl -X POST http://$SERVER1:5555/v1.41/containers/web2/stop
+
+sleep $MONITORTIME
+
+sudo curl -s $SERVER1:$PORT --max-time 5 > testresult1.txt
+sudo curl -s $SERVER2:$PORT --max-time 5 > testresult2.txt
+sudo curl -s $SERVER3:$PORT --max-time 5 > testresult3.txt
+sudo curl -s $SERVER4:$PORT --max-time 5 > testresult4.txt
+
+sleep $DNSFAILOVERTIME
+sudo curl -s $VIP1 --max-time 5 > testresult5.txt
+sudo curl -s $VIP2 --max-time 5 > testresult6.txt
+
+sleep 1
+printf "${WHITE}Testing Web Servers with web2 stopped & web1 restarted\n"
+if grep -Rq "$Working" testresult1.txt
+then
+    printf "${GREEN}server1 $SERVER1 is working\n"
+else
+    printf "${RED}server1 $SERVER1 is not working\n"
+fi
+
+sleep 1
+if grep -Rq "$Working" testresult2.txt
+then
+    printf "${GREEN}server2 $SERVER2 is working\n"
+else
+    printf "${RED}server2 $SERVER2 is not working\n"
+fi
+
+sleep 1
+if grep -Rq "$Working" testresult3.txt
+then
+    printf "${GREEN}server3 $SERVER3 is working\n"
+else
+    printf "${RED}server3 $SERVER3 is not working\n"
+fi
+
+sleep 1
+if grep -Rq "$Working" testresult4.txt
+then
+    printf "${GREEN}server4 $SERVER4 is working\n"
+else
+    printf "${RED}server4 $SERVER4 is not working\n"
+fi
+printf "${WHITE}Finished direct server tests\n"
+
+echo "Starting Loadbalancer tests"
+sleep 1
+if grep -Rq "$Working" testresult5.txt
+then
+    printf "${GREEN}vip1 $VIP1 at 2 Treasury DC is working\n"
+else
+    printf "${RED}vip1 $VIP1 at 2 Treasury DC is not working\n"
+fi
+
+sleep 1
+if grep -Rq "$Working" testresult6.txt
+then
+    printf "${GREEN}vip2 $VIP2 at East Burwood DC is working\n"
+else
+    printf "${RED}vip2 $VIP2 at East Burwood DC is not working\n"
+fi
+printf "${WHITE}Finished Loadbalancer tests\n"
+
+sleep 1
+
+read -p "Hit Enter to run next test"
+echo "STARTING web2"
+sudo curl -X POST http://$SERVER1:5555/v1.41/containers/web2/start
+echo "STOPPING web3"
+echo "Please wait ......"
+sudo curl -X POST http://$SERVER3:5555/v1.41/containers/web3/stop
+
+sleep $MONITORTIME
+
+sudo curl -s $SERVER1:$PORT --max-time 5 > testresult1.txt
+sudo curl -s $SERVER2:$PORT --max-time 5 > testresult2.txt
+sudo curl -s $SERVER3:$PORT --max-time 5 > testresult3.txt
+sudo curl -s $SERVER4:$PORT --max-time 5 > testresult4.txt
+
+sleep $DNSFAILOVERTIME
+sudo curl -s $VIP1 --max-time 5 > testresult5.txt
+sudo curl -s $VIP2 --max-time 5 > testresult6.txt
+
+sleep 1
+printf "${WHITE}Testing Web Servers with web3 stopped & web2 restarted\n"
+if grep -Rq "$Working" testresult1.txt
+then
+    printf "${GREEN}server1 $SERVER1 is working\n"
+else
+    printf "${RED}server1 $SERVER1 is not working\n"
+fi
+
+sleep 1
+if grep -Rq "$Working" testresult2.txt
+then
+    printf "${GREEN}server2 $SERVER2 is working\n"
+else
+    printf "${RED}server2 $SERVER2 is not working\n"
+fi
+
+sleep 1
+if grep -Rq "$Working" testresult3.txt
+then
+    printf "${GREEN}server3 $SERVER3 is working\n"
+else
+    printf "${RED}server3 $SERVER3 is not working\n"
+fi
+
+sleep 1
+if grep -Rq "$Working" testresult4.txt
+then
+    printf "${GREEN}server4 $SERVER4 is working\n"
+else
+    printf "${RED}server4 $SERVER4 is not working\n"
+fi
+printf "${WHITE}Finished direct server tests\n"
+
+echo "Starting Loadbalancer tests"
+sleep 1
+if grep -Rq "$Working" testresult5.txt
+then
+    printf "${GREEN}vip1 $VIP1 at 2 Treasury DC is working\n"
+else
+    printf "${RED}vip1 $VIP1 at 2 Treasury DC is not working\n"
+fi
+
+sleep 1
+if grep -Rq "$Working" testresult6.txt
+then
+    printf "${GREEN}vip2 $VIP2 at East Burwood DC is working\n"
+else
+    printf "${RED}vip2 $VIP2 at East Burwood DC is not working\n"
+fi
+printf "${WHITE}Finished Loadbalancer tests\n"
+
+sleep 1
+
+read -p "Hit Enter to run next test"
+echo "STARTING web3"
+sudo curl -X POST http://$SERVER3:5555/v1.41/containers/web3/start
+echo "STOPPING web4"
+echo "Please wait ......"
+sudo curl -X POST http://$SERVER4:5555/v1.41/containers/web4/stop
+
+sleep $MONITORTIME
+
+sudo curl -s $SERVER1:$PORT --max-time 5 > testresult1.txt
+sudo curl -s $SERVER2:$PORT --max-time 5 > testresult2.txt
+sudo curl -s $SERVER3:$PORT --max-time 5 > testresult3.txt
+sudo curl -s $SERVER4:$PORT --max-time 5 > testresult4.txt
+
+sleep $DNSFAILOVERTIME
+sudo curl -s $VIP1 --max-time 5 > testresult5.txt
+sudo curl -s $VIP2 --max-time 5 > testresult6.txt
+
+sleep 1
+printf "${WHITE}Testing Web Servers with web4 stopped & web3 restarted\n"
+if grep -Rq "$Working" testresult1.txt
+then
+    printf "${GREEN}server1 $SERVER1 is working\n"
+else
+    printf "${RED}server1 $SERVER1 is not working\n"
+fi
+
+sleep 1
+if grep -Rq "$Working" testresult2.txt
+then
+    printf "${GREEN}server2 $SERVER2 is working\n"
+else
+    printf "${RED}server2 $SERVER2 is not working\n"
+fi
+
+sleep 1
+if grep -Rq "$Working" testresult3.txt
+then
+    printf "${GREEN}server3 $SERVER3 is working\n"
+else
+    printf "${RED}server3 $SERVER3 is not working\n"
+fi
+
+sleep 1
+if grep -Rq "$Working" testresult4.txt
+then
+    printf "${GREEN}server4 $SERVER4 is working\n"
+else
+    printf "${RED}server4 $SERVER4 is not working\n"
+fi
+printf "${WHITE}Finished direct server tests\n"
+
+echo "Starting Loadbalancer tests"
+sleep 1
+if grep -Rq "$Working" testresult5.txt
+then
+    printf "${GREEN}vip1 $VIP1 at 2 Treasury DC is working\n"
+else
+    printf "${RED}vip1 $VIP1 at 2 Treasury DC is not working\n"
+fi
+
+sleep 1
+if grep -Rq "$Working" testresult6.txt
+then
+    printf "${GREEN}vip2 $VIP2 at East Burwood DC is working\n"
+else
+    printf "${RED}vip2 $VIP2 at East Burwood DC is not working\n"
+fi
+printf "${WHITE}Finished Loadbalancer tests\n"
+
+sleep 1
+
+read -p "Hit Enter run next test"
+echo "STOPPING web3"
+sudo curl -X POST http://$SERVER3:5555/v1.41/containers/web3/stop
+
+sleep $MONITORTIME
+
+sudo curl -s $SERVER1:$PORT --max-time 5 > testresult1.txt
+sudo curl -s $SERVER2:$PORT --max-time 5 > testresult2.txt
+sudo curl -s $SERVER3:$PORT --max-time 5 > testresult3.txt
+sudo curl -s $SERVER4:$PORT --max-time 5 > testresult4.txt
+
+sleep $DNSFAILOVERTIME
+sudo curl -s $VIP1 --max-time 5 > testresult5.txt
+sudo curl -s $VIP2 --max-time 5 > testresult6.txt
+
+sleep 1
+printf "${WHITE}Testing Web Servers with web3 & web4 stopped\n"
+if grep -Rq "$Working" testresult1.txt
+then
+    printf "${GREEN}server1 $SERVER1 is working\n"
+else
+    printf "${RED}server1 $SERVER1 is not working\n"
+fi
+
+sleep 1
+if grep -Rq "$Working" testresult2.txt
+then
+    printf "${GREEN}server2 $SERVER2 is working\n"
+else
+    printf "${RED}server2 $SERVER2 is not working\n"
+fi
+
+sleep 1
+if grep -Rq "$Working" testresult3.txt
+then
+    printf "${GREEN}server3 $SERVER3 is working\n"
+else
+    printf "${RED}server3 $SERVER3 is not working\n"
+fi
+
+sleep 1
+if grep -Rq "$Working" testresult4.txt
+then
+    printf "${GREEN}server4 $SERVER4 is working\n"
+else
+    printf "${RED}server4 $SERVER4 is not working\n"
+fi
+printf "${WHITE}Finished direct server tests\n"
+
+sleep 1
+if grep -Rq "$Working" testresult5.txt
+then
+    printf "${GREEN}vip1 $VIP1 at 2 Treasury DC is working\n"
+else
+    printf "${RED}vip1 $VIP1 at 2 Treasury DC is not working\n"
+fi
+
+sleep 1
+if grep -Rq "$Working" testresult6.txt
+then
+    printf "${GREEN}vip2 $VIP2 at East Burwood DC is working\n"
+else
+    printf "${RED}vip2 $VIP2 at East Burwood DC is not working\n"
+fi
+printf "${WHITE}Finished Loadbalancer tests\n"
+
+sleep 1
+
+read -p "Hit Enter to run next test"
+echo "STARTING web3"
+sudo curl -X POST http://$SERVER3:5555/v1.41/containers/web3/start
+echo "STARTING web4"
+sudo curl -X POST http://$SERVER4:5555/v1.41/containers/web4/start
+echo "STOPPING web1"
+sudo curl -X POST http://$SERVER1:5555/v1.41/containers/web1/stop
+echo "STOPPING web2"
+sudo curl -X POST http://$SERVER2:5555/v1.41/containers/web2/stop
+sleep $MONITORTIME
+
+sudo curl -s $SERVER1:$PORT --max-time 5 > testresult1.txt
+sudo curl -s $SERVER2:$PORT --max-time 5 > testresult2.txt
+sudo curl -s $SERVER3:$PORT --max-time 5 > testresult3.txt
+sudo curl -s $SERVER4:$PORT --max-time 5 > testresult4.txt
+
+sleep $DNSFAILOVERTIME
+sudo curl -s $VIP1 --max-time 5 > testresult5.txt
+sudo curl -s $VIP2 --max-time 5 > testresult6.txt
+
+sleep 1
+printf "${WHITE}Testing Web Servers with web3 & web4 stopped\n"
+if grep -Rq "$Working" testresult1.txt
+then
+    printf "${GREEN}server1 $SERVER1 is working\n"
+else
+    printf "${RED}server1 $SERVER1 is not working\n"
+fi
+
+sleep 1
+if grep -Rq "$Working" testresult2.txt
+then
+    printf "${GREEN}server2 $SERVER2 is working\n"
+else
+    printf "${RED}server2 $SERVER2 is not working\n"
+fi
+
+sleep 1
+if grep -Rq "$Working" testresult3.txt
+then
+    printf "${GREEN}server3 $SERVER3 is working\n"
+else
+    printf "${RED}server3 $SERVER3 is not working\n"
+fi
+
+sleep 1
+if grep -Rq "$Working" testresult4.txt
+then
+    printf "${GREEN}server4 $SERVER4 is working\n"
+else
+    printf "${RED}server4 $SERVER4 is not working\n"
+fi
+printf "${WHITE}Finished direct server tests\n"
+
+sleep 1
+if grep -Rq "$Working" testresult5.txt
+then
+    printf "${GREEN}vip1 $VIP1 at 2 Treasury DC is working\n"
+else
+    printf "${RED}vip1 $VIP1 at 2 Treasury DC is not working\n"
+fi
+
+sleep 1
+if grep -Rq "$Working" testresult6.txt
+then
+    printf "${GREEN}vip2 $VIP2 at East Burwood DC is working\n"
+else
+    printf "${RED}vip2 $VIP2 at East Burwood DC is not working\n"
+fi
+printf "${WHITE}Finished Loadbalancer tests\n"
+
+sleep 1
+
+echo "TEST SET COMPLETED!!!"
